@@ -5,18 +5,16 @@ from io import BytesIO
 import os
 
 # -------------------------------
-# Your OCR.space / Copyfish API key
 API_KEY = "K87899389288957"
 URL = "https://api.ocr.space/parse/image"
 
-# Maximum image size (width, height) to prevent timeout
-MAX_SIZE = (2000, 2000)  # pixels
-TIMEOUT = 60  # seconds for API request
+MAX_SIZE = (2000, 2000)  # max image dimensions
+TIMEOUT = 60              # API timeout in seconds
 # -------------------------------
 
-# --- Step 1: Pick multiple images from Mac ---
+# --- Step 1: Pick multiple images ---
 root = Tk()
-root.withdraw()  # hide Tkinter window
+root.withdraw()
 file_paths = filedialog.askopenfilenames(
     title="Select one or more images",
     filetypes=[
@@ -34,34 +32,29 @@ for file_path in file_paths:
     print(f"\n📂 Processing file: {file_path}")
 
     try:
-        # Open image
+        # Open and preprocess image
         img = Image.open(file_path)
-
-        # Preprocess: grayscale + contrast
-        img = img.convert("L")
+        img = img.convert("L")  # grayscale
         img = ImageEnhance.Contrast(img).enhance(2)
-
-        # Resize if too large
-        img.thumbnail(MAX_SIZE)
+        img.thumbnail(MAX_SIZE)  # resize if too large
 
         # Save to in-memory bytes
         img_bytes = BytesIO()
         img.save(img_bytes, format="PNG")
         img_bytes.seek(0)
 
-        # Use a proper filename and content-type for OCR.space
+        # Proper filename for OCR.space
         files = {"file": ("image.png", img_bytes, "image/png")}
 
     except Exception as e:
         print("⚠️ Could not preprocess image, using original:", e)
-        # fallback to original file
         files = {"file": (os.path.basename(file_path), open(file_path, "rb"), "image/png")}
 
     # --- Step 3: Upload to OCR.space ---
     payload = {
         "apikey": API_KEY,
-        "language": "jpn",   # change to "ben", "jpn", etc. if needed
-        "OCREngine": 1,      # 1 = faster, 2 = more accurate
+        "language": "eng",  # change to "ben", "jpn", etc.
+        "OCREngine": 1,     # 1 = faster, 2 = more accurate
     }
 
     try:
@@ -71,11 +64,10 @@ for file_path in file_paths:
         print("❌ Request failed:", e)
         continue
 
-    # Close BytesIO if used
     if isinstance(files["file"][1], BytesIO):
         files["file"][1].close()
 
-    # --- Step 4: Safe parsing of OCR result ---
+    # --- Step 4: Extract & save text in script directory ---
     if result.get("IsErroredOnProcessing"):
         print("❌ OCR failed:", result.get("ErrorMessage"))
         continue
@@ -84,10 +76,10 @@ for file_path in file_paths:
     if parsed_results and len(parsed_results) > 0:
         text = parsed_results[0].get("ParsedText", "")
 
-        # Save text to .txt file in same folder
-        image_dir = os.path.dirname(file_path)
+        # Save in the directory where this Python script is running
+        script_dir = os.getcwd()  # current working directory
         image_name = os.path.splitext(os.path.basename(file_path))[0]
-        output_file = os.path.join(image_dir, image_name + "_ocr.txt")
+        output_file = os.path.join(script_dir, image_name + "_ocr.txt")
 
         with open(output_file, "w", encoding="utf-8") as out:
             out.write(text)
